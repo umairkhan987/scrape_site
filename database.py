@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 
 Base = automap_base()
-engine = create_engine("mysql+pymysql://root:Khan1234@localhost/spypoint_images")
+
+db_name = "spypoint_images"
+db_username = "root"
+db_password = "Khan1234"
+db_host = "localhost"
+
+engine = create_engine(f"mysql+pymysql://{db_username}:{db_password}@{db_host}/{db_name}")
 Base.prepare(engine, reflect=True)
 session = Session(engine)
 
@@ -15,37 +21,45 @@ session = Session(engine)
 Images = Base.classes.images
 
 
-def get_image():
-    images = session.query(Images).all()
-    if images:
-        for image in images:
-            print(f"{image.id}, {image.path}, {image.location}, {image.image_date}")
-
-
 def insert_into_db(images_obj):
     if images_obj:
         session.add_all(images_obj)
         session.commit()
+        print("All data saved into db...")
 
 
-def most_recent_date():
-    pass
+def convert_datetime_into_string(date_obj):
+    return date_obj.strftime('%A, %B %-d, %Y')
+
+
+def most_recent_images():
+    recent_image_dict = {}
+    images = session.query(Images.image_date, Images.location).distinct().order_by(Images.image_date.desc())
+    for image in images:
+        if image.location not in recent_image_dict:
+            recent_image_dict[image.location] = image.image_date
+    return recent_image_dict
 
 
 def download_image(url, folder_id, image_id):
-    current_dir = os.path.join(os.getcwd(), "images")
-    if not os.path.exists(current_dir):
-        os.makedirs(current_dir)
-    image_name = f"{folder_id}_{image_id}.jpg"
-    image_path = os.path.join(current_dir, image_name)
-    request.urlretrieve(url, image_path)
-    return image_path
+    try:
+        current_dir = os.path.join(os.getcwd(), "images")
+        if not os.path.exists(current_dir):
+            os.makedirs(current_dir)
+        image_name = f"{folder_id}_{image_id}.jpg"
+        image_path = os.path.join(current_dir, image_name)
+        if not os.path.exists(image_path):
+            request.urlretrieve(url, image_path)
+        return image_path
+    except Exception as e:
+        print("Download image Exception\n", str(e))
 
 
 def convert_string_into_datetime(date_str):
     return datetime.strptime(date_str, '%A, %B %d, %Y')
 
 
+# Iterate over the provided data and convert into list of images object
 def process_data(data):
     images_obj = []
     if data:
@@ -60,7 +74,4 @@ def process_data(data):
 
 
 if __name__ == "__main__":
-    data = [
-        ['603e89924b85000015901db5', 'Frank’s Feeder LINK-MICRO-S-LTE-YGEP', 'Saturday, January 1, 2022', '61d11af64cbdec001415101f', 'https://s3.amazonaws.com/spypoint-production-account-failover/5ff9caaa6ce1c40014c50231/603e89924b85000015901db5/20220102/PICT4501_202201020324Df2NA.jpg?X-Amz-Expires=86400&X-Amz-Date=20220102T033810Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIATVANQEDJ5KPEZXK2%2F20220102%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=a356ea8964f9700164487af95ca64094613c4621f1403df6287da75e6100f066'],
-        ['603e89924b85000015901db5', 'Frank’s Feeder LINK-MICRO-S-LTE-YGEP', 'Saturday, January 1, 2022', '61d11af64cbdec0014151020', 'https://s3.amazonaws.com/spypoint-production-account-failover/5ff9caaa6ce1c40014c50231/603e89924b85000015901db5/20220102/PICT4500_202201020324Km96F.jpg?X-Amz-Expires=86400&X-Amz-Date=20220102T033832Z&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIATVANQEDJ5KPEZXK2%2F20220102%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-SignedHeaders=host&X-Amz-Signature=a7f337e17a451ea9704c1960d15c3135e95375f0c25798433e52af505f358486']]
-    process_data(data)
+    most_recent_images()

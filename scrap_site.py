@@ -6,10 +6,10 @@ from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import WebDriverWait
 
-from database import most_recent_date, process_data
+from database import most_recent_images, process_data, convert_string_into_datetime
 
 URL = 'https://webapp.spypoint.com/login'
 CAMERA_URL = 'https://webapp.spypoint.com/camera/'
@@ -23,7 +23,7 @@ def scrape():
     driver.maximize_window()
     driver.get(URL)
     img_folder = {}
-
+    recent_images_dict = most_recent_images()
     delay = 3  # seconds
     try:
         WebDriverWait(driver, delay).until(EC.presence_of_element_located((By.ID, 'email')))
@@ -36,20 +36,13 @@ def scrape():
         print("Page is logged In!!!")
         time.sleep(10)
 
+        # Scrape the images folder and get their name and id
         divs = driver.find_elements(By.CLASS_NAME, 'MuiTypography-body1')
         for div in divs:
             above_div = div.find_element(By.XPATH, "..")
             img_folder[above_div.get_attribute("id")] = div.text
 
-        # if img_folder:
-        #
-        #     time.sleep(10)
-        #     modal = driver.find_element(By.CLASS_NAME, "MuiDialog-paperFullScreen")
-        #
-        #     main_img = modal.find_element(By.TAG_NAME, "img").get_attribute("src")
-        #     print("main image url ", main_img)
-        #     # download_image(main_img, folder_key, image_key)
-
+        # Scrape the all images id and date inside each folder
         date_img = {}
         if img_folder:
             for key, value in img_folder.items():
@@ -62,9 +55,15 @@ def scrape():
                     while True:
                         elem = driver.find_element(By.XPATH, f'//*[@id="root"]/div[2]/div[3]/div/div[2]/div[{i}]')
                         i += 2
+                        date_str = elem.text
+                        if value not in date_str:
+                            print("elem.text ", date_str)
 
-                        if value not in elem.text:
-                            print("elem.text ", elem.text)
+                            # Condition check if most recent date of each folder already exists then don't scrape it
+                            if value in recent_images_dict and date_str and \
+                                    convert_string_into_datetime(date_str).date() == recent_images_dict[value]:
+                                date_img[key] = date_images
+                                break
 
                             div_elem = driver.find_element(By.XPATH,
                                                            f'//*[@id="root"]/div[2]/div[3]/div/div[2]/div[{j}]')
@@ -76,7 +75,7 @@ def scrape():
                             for img in img_tags:
                                 img_ids.append(img.get_attribute("id"))
 
-                            date_images[elem.text] = img_ids
+                            date_images[date_str] = img_ids
                             driver.execute_script(f"window.scrollTo(0, {scroll_bottom})")
                             scroll_bottom += 500
                             time.sleep(5)
@@ -84,33 +83,38 @@ def scrape():
                     date_img[key] = date_images
                     continue
 
-        print(img_folder)
-        print(date_img)
+        # Scrape the large Image URL
         detail_list = []
         if date_img:
             for key, values in date_img.items():
                 if values:
                     for date, img_list in values.items():
                         for img_id in img_list:
-                            # append folder name and date
-                            image_object = [key, img_folder[key], date, img_id]
+                            try:
+                                # append folder name and date
+                                image_object = [key, img_folder[key], date, img_id]
 
-                            driver.get(CAMERA_URL + key + "/photo/" + img_id)
-                            time.sleep(10)
-                            modal = driver.find_element(By.CLASS_NAME, "MuiDialog-paperFullScreen")
-                            main_img = modal.find_element(By.TAG_NAME, "img").get_attribute("src")
-                            print("main image url ", main_img)
-                            # download_image(main_img, folder_key, image_key)
-                            image_object.append(main_img)
-                            detail_list.append(image_object)
+                                driver.get(CAMERA_URL + key + "/photo/" + img_id)
+                                time.sleep(10)
+                                modal = driver.find_element(By.CLASS_NAME, "MuiDialog-paperFullScreen")
+                                main_img = modal.find_element(By.TAG_NAME, "img").get_attribute("src")
+                                # print("main image url ", main_img)
+                                image_object.append(main_img)
+                                detail_list.append(image_object)
+                            except Exception as e:
+                                print("Get Image URL exception ", str(e))
+                                continue
+
         driver.close()
+
+        # Send scrape data to store in db
         if detail_list:
-            print("detail list ", detail_list)
+            print("All data to be scrapped and send to store in DB...")
             process_data(detail_list)
 
-    except TimeoutException:
+    except Exception as e:
+        print("Main exception occur", str(e))
         driver.close()
-        print("Loading took too much time!")
 
     return None
 
