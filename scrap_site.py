@@ -18,9 +18,13 @@ PASSWORD = "Hg7Zvbgss*&"
 
 
 def scrape():
+    options = webdriver.ChromeOptions()
+    options.add_argument('headless')
+    options.add_argument('window-size=1920x1080')
+    options.add_argument("disable-gpu")
+
     s = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=s)
-    driver.maximize_window()
+    driver = webdriver.Chrome(service=s, options=options)
     driver.get(URL)
     img_folder = {}
     recent_images_dict = most_recent_images()
