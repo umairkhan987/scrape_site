@@ -108,13 +108,17 @@ def scrape():
                             except Exception as e:
                                 print("Get Image URL exception ", str(e))
                                 continue
+                        if detail_list:
+                            print(f"All images inside {date} send to insert in DB...")
+                            process_data(detail_list)
+                            detail_list.clear()
 
         driver.close()
 
         # Send scrape data to store in db
-        if detail_list:
-            print("All data to be scrapped and send to store in DB...")
-            process_data(detail_list)
+        # if detail_list:
+        #     print("All data to be scrapped and send to store in DB...")
+        #     process_data(detail_list)
 
     except Exception as e:
         print("Main exception occur", str(e))
